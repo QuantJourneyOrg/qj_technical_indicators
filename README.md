@@ -1,6 +1,7 @@
 # Technical Indicators Library 🚀
 
-Welcome to the **Technical Indicators Library**, a high-performance, open-source collection of financial technical indicators. Originally developed as part of the [QuantJourney project](https://quantjourney.substack.com) by Jakub Polec, it’s now freely available for everyone to use, fork, and improve under the MIT License.
+Welcome to the **Technical Indicators Library**, a high-performance, open-source collection of financial technical indicators. Originally developed as part of the [QuantJourney project](https://quantjourney.substack.com) by Jakub Polec, it’s now freely available under the MIT License for everyone to use, fork, and improve as a Quantitative Infrastructure initiative, providing traders and investors with fast, reliable tools for financial analysis.
+
 
 ## 🌟 Features
 - **Comprehensive Indicators**: Includes SMA, EMA, RSI, MACD, and many more.
@@ -45,21 +46,22 @@ Date
 ```
 
 ## 🤝 Contributing
-We’d love your help! Here’s how:
-- **Fork** the repo
-- **Create** a feature branch (`git checkout -b feature/awesome-indicator`)
-- **Commit** your changes (`git commit -m "Add Awesome Indicator"`)
-- **Push** to the branch (`git push origin feature/awesome-indicator`)
-- **Open** a Pull Request
+We welcome contributions! To contribute code:
+- **Fork** the repository to your GitHub account.
+- **Clone** your fork locally: `git clone https://github.com/<your-username>/qj_technical_indicators.git`
+- **Create** a feature branch: `git checkout -b feature/your-indicator`
+- **Commit** your changes: `git commit -m "Add your indicator"`
+- **Push** to your fork: `git push origin feature/your-indicator`
+- **Submit** a Pull Request (PR) via GitHub to the `main` branch of this repo.
 
-Have questions? Reach out to Jakub at [jakub@quantjourney.pro](mailto:jakub@quantjourney.pro).
+All PRs require approval from the repository owner (Jakub Polec) before merging. Please ensure your code is well-documented and tested. For questions, email [jakub@quantjourney.pro](mailto:jakub@quantjourney.pro).
 
 ## 📜 License
-This project is licensed under the MIT License. Feel free to use it in your personal or commercial projects!
+This project is licensed under the MIT License. Feel free to use it in your personal or commercial projects! (License file to be added soon.)
 
 ## Acknowledgements
 - Inspired by the QuantJourney community
 - Built by Jakub Polec
-- Thanks to the open-source community for tools like NumPy and Numba!
+- Thanks to the open-source community for tools like NumPy and Numba
 
 Happy coding, and let’s make financial analysis faster and better together!
