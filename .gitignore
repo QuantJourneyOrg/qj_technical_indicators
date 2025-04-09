@@ -1,0 +1,26 @@
+# Python-specific
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+*.egg-info/
+dist/
+build/
+*.log
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# IDE-specific
+.idea/
+.vscode/
+
+# Testing and temporary files
+*.csv
+*.pickle
+*.h5
+*.temp

@@ -31,6 +31,7 @@ from numba import njit, prange
 from typing import Tuple, Union, Dict, Optional, List
 from enum import Enum
 import logging
+from decorator import timer
 
 # Set up generic logging
 logging.basicConfig(
