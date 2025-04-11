@@ -47,31 +47,55 @@ def try_all_indicators():
     """Fetch AAPL data and calculate all technical indicators with timing."""
     logger.info("Fetching AAPL data from yfinance...")
     data = yf.download('AAPL', start='2010-01-01', end='2025-01-01', progress=False)
+    
+    # Log raw columns for debugging
+    logger.info(f"Raw DataFrame columns: {data.columns}")
+    
+    # Handle multi-level columns
+    if isinstance(data.columns, pd.MultiIndex):
+        logger.warning("Multi-level columns detected, extracting AAPL data")
+        data = data.xs('AAPL', level=1, axis=1)  # Extract AAPL data
+    
+    # Rename columns
     data = data.rename(columns={
         'Adj Close': 'adj_close',
+        'adj close': 'adj_close',
         'Close': 'close',
+        'close': 'close',
         'Open': 'open',
+        'open': 'open',
         'High': 'high',
+        'high': 'high',
         'Low': 'low',
-        'Volume': 'volume'
+        'low': 'low',
+        'Volume': 'volume',
+        'volume': 'volume'
     })
-
+    
+    # Verify columns
+    logger.info(f"DataFrame columns after renaming: {data.columns.tolist()}")
+    if 'close' not in data.columns:
+        logger.error("No 'close' column found in DataFrame")
+        raise ValueError("Required column 'close' not found")
+    
+    # Inspect data['close']
+    logger.info(f"Type of data['close']: {type(data['close'])}")
+    logger.info(f"First few values of data['close']: {data['close'].head()}")
+    
     ti = TechnicalIndicators()
     indicators = [
         ('SMA', lambda: ti.SMA(data['close'], period=20)),
         ('EMA', lambda: ti.EMA(data['close'], period=20)),
-        # Add more indicators here based on what you implement in technical_indicators.py
-        # Example: ('RSI', lambda: ti.RSI(data['close'], period=14)),
-        #          ('MACD', lambda: ti.MACD(data['close'])),
+        # Add more indicators as needed
     ]
-
+    
     results = {}
     for name, func in indicators:
         logger.info(f"Calculating {name}...")
         result = func()
         results[name] = result
         logger.info(f"{name} sample:\n{result.tail(5)}\n")
-
+    
     return results
 
 if __name__ == "__main__":
