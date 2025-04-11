@@ -10,9 +10,11 @@ Welcome to the **Technical Indicators Library**, a high-performance, open-source
 - **Execution Timing**: Features a decorator to measure and log computation times.
 - **Open Source**: Licensed under MIT for unrestricted use in any project.
 
-## 🎯 Getting Started
+## Support project on Ko-Fi:
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/L3L810PUPW)
+
+## 🎯 Getting Started
 
 ### Prerequisites
 - Python 3.8 or higher
