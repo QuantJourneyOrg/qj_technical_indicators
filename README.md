@@ -12,6 +12,8 @@ Welcome to the **Technical Indicators Library**, a high-performance, open-source
 
 ## 🎯 Getting Started
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/L3L810PUPW)
+
 ### Prerequisites
 - Python 3.8 or higher
 - Required packages: `numpy`, `pandas`, `yfinance`, `numba`, `matplotlib` (optional for plotting)
