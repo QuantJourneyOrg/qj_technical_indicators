@@ -168,9 +168,7 @@ The library provides the following technical indicators, grouped by category:
 
 ---
 
-## Technical Documentation: How to Use
-
-### 1. Installation
+## How to Use this Library
 
 Currently, the library is provided as a single Python file (`.py`). To use it, save the file in your project directory and import the `TechnicalIndicators` class:
 
