@@ -49,6 +49,10 @@ Date
 ...
 ```
 
+## Further documentation
+
+For list of indicators provided with brief descriptions [see this document](documentation.md). 
+
 ## 🤝 Contributing
 We welcome contributions! To contribute code:
 - **Fork** the repository to your GitHub account.
