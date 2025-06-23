@@ -50,3 +50,6 @@ Thumbs.db
 *.pickle
 *.h5
 *.temp
+
+# Adding
+!examples/indicator_plots/*.png
