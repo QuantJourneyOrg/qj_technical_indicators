@@ -35,7 +35,6 @@ venv/
 *.yml
 
 # Documentation
-docs/_build/
 *.rst
 
 # OS-specific

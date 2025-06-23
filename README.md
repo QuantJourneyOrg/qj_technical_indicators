@@ -30,6 +30,8 @@ quantjourney_ti/
 ├── _legacy_/                 # Legacy code (not actively maintained)
 ├── _utils.py                 # Utility functions for validation, plotting, and memory optimization
 ├── indicators.py             # Main API class (TechnicalIndicators) with public methods
+├── docs/                     # Documentation
+│   ├── INDICATORS.md         # Explanation of each indicator
 ├── examples/                 # Example scripts demonstrating usage
 │   ├── example_basic.py      # Basic indicator calculations
 │   ├── example_indicators.py # Advanced usage with multiple indicators and plotting
@@ -120,27 +122,48 @@ python examples/run_indicators.py
 
 ## Supported Indicators
 
-The library supports 20 top-used indicators, including:
-- SMA (Simple Moving Average)
-- EMA (Exponential Moving Average)
-- RSI (Relative Strength Index)
-- WILLR (Williams %R)
-- MFI (Money Flow Index)
-- Momentum Index
-- RVI (Relative Vigor Index)
-- AD (Accumulation/Distribution Line)
-- ADOSC (Chaikin A/D Oscillator)
-- Elder Ray (Bull Power)
-- MACD (Moving Average Convergence Divergence)
-- BB_Middle (Bollinger Bands Middle)
-- ATR (Average True Range)
-- STOCH_K (Stochastic %K)
-- CCI (Commodity Channel Index)
-- ROC (Rate of Change)
-- OBV (On-Balance Volume)
-- VWAP (Volume Weighted Average Price)
-- DEMA (Double Exponential Moving Average)
-- ALMA (Arnaud Legoux Moving Average)
+The library supports 39 indicators (54 series):
+- **Single-Series Indicators** (21):
+  - SMA (Simple Moving Average)
+  - EMA (Exponential Moving Average)
+  - RSI (Relative Strength Index)
+  - ATR (Average True Range)
+  - MFI (Money Flow Index)
+  - TRIX
+  - CCI (Commodity Channel Index)
+  - ROC (Rate of Change)
+  - WILLR (Williams %R)
+  - DEMA (Double Exponential Moving Average)
+  - KAMA (Kaufman Adaptive Moving Average)
+  - AO (Awesome Oscillator)
+  - ULTIMATE_OSCILLATOR
+  - CMO (Chande Momentum Oscillator)
+  - DPO (Detrended Price Oscillator)
+  - MASS_INDEX
+  - VWAP (Volume Weighted Average Price)
+  - AD (Accumulation/Distribution Line)
+  - HULL_MA (Hull Moving Average)
+  - OBV (On-Balance Volume)
+  - RVI (Relative Vigor Index)
+- **Multi-Series Indicators** (18):
+  - MACD (MACD, Signal, Histogram)
+  - BB (Bollinger Bands: BB_Upper, BB_Middle, BB_Lower)
+  - STOCH (Stochastic Oscillator: K, D)
+  - ADX (Average Directional Index: ADX, +DI, -DI)
+  - ICHIMOKU (Tenkan-sen, Kijun-sen, Senkou Span A, Senkou Span B, Chikou Span)
+  - KELTNER (Keltner Channels: KC_Upper, KC_Middle, KC_Lower)
+  - DONCHIAN (Donchian Channels: DC_Upper, DC_Middle, DC_Lower)
+  - AROON (AROON_UP, AROON_DOWN, AROON_OSC)
+  - VOLUME_INDICATORS (Volume_SMA, Force_Index, VPT)
+  - PIVOT_POINTS (PP, R1, R2, S1, S2)
+  - RAINBOW (9 SMAs for periods 2-10)
+  - BETA
+  - DI (Directional Indicator: +DI, -DI)
+  - ADOSC (Chaikin A/D Oscillator)
+  - HEIKEN_ASHI (HA_Open, HA_High, HA_Low, HA_Close)
+  - BENFORD_LAW (Observed, Expected)
+  - MOMENTUM_INDEX (MomentumIndex, NegativeIndex)
+  - ELDER_RAY (BullPower, BearPower)
 
 See `indicators.py` for the full list and parameters.
 
