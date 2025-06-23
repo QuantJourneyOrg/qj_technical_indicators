@@ -31,12 +31,11 @@ from numba import njit, prange
 from typing import Tuple, Union, Dict, Optional, List
 from enum import Enum
 import logging
-from decorator import timer
+from .decorators import timer
 
 # Set up generic logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -3339,3 +3338,18 @@ if __name__ == "__main__":
 
     # Run all tests
     results = run_all_tests(data, market_data)
+
+
+from technical_indicators import TechnicalIndicators
+
+# Fetch data
+data = yf.download("AAPL", start="2020-01-01", end="2025-01-01")
+ti = TechnicalIndicators()
+
+# Calculate SMA and RSI
+sma = ti.SMA(data["Close"], period=20)
+rsi = ti.RSI(data["Close"], period=14)
+
+# View results
+print("SMA:\n", sma.tail())
+print("RSI:\n", rsi.tail())

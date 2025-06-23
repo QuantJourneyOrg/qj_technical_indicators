@@ -1,67 +1,176 @@
-# Technical Indicators Library 🚀
+# QuantJourney Technical Indicators
 
-Welcome to the **Technical Indicators Library**, a high-performance, open-source collection of financial technical indicators. Originally developed as part of the [QuantJourney project](https://quantjourney.substack.com) by Jakub Polec, it’s now freely available under the MIT License for everyone to use, fork, and improve as a Quantitative Infrastructure initiative, providing traders and investors with fast, reliable tools for financial analysis.
+**A high-performance Python library for calculating technical indicators, optimized with Numba for speed and designed for financial data analysis. This project is part of the Quantitative Infrastructure initiative by [QuantJourney](https://quantjourney.substack.com), providing robust tools for traders and researchers.**
 
+**License**: MIT License - see [LICENSE.md](LICENSE.md) for details.  
+**Author**: Jakub Polec ([jakub@quantjourney.pro](mailto:jakub@quantjourney.pro))  
+**Repository**: [github.com/QuantJourneyOrg/qj_technical_indicators](https://github.com/QuantJourneyOrg/qj_technical_indicators)
 
-## 🌟 Features
-- **Comprehensive Indicators**: Includes SMA, EMA, RSI, MACD, and many more.
-- **Optimized Performance**: Powered by [Numba](https://numba.pydata.org/) for fast calculations.
-- **No TA-Lib Required**: Built from the ground up with NumPy, Pandas, and yfinance.
-- **Execution Timing**: Features a decorator to measure and log computation times.
-- **Open Source**: Licensed under MIT for unrestricted use in any project.
+## Overview
 
-## 🎯 Getting Started
+The QuantJourney Technical Indicators library offers a comprehensive set of technical indicators for analyzing financial time series data. Key features include:
+- **Numba-Optimized Calculations**: Fast, JIT-compiled functions for performance-critical computations.
+- **Flexible API**: Supports both standalone functions and a `TechnicalIndicators` class for object-oriented usage.
+- **Robust Error Handling**: Validates inputs and handles edge cases like NaNs and empty data.
+- **Visualization**: Generates individual plots for indicators, saved as PNG files in an `indicator_plots` directory.
+- **Integration**: Works seamlessly with `pandas` DataFrames and `yfinance` for data fetching.
 
-### Prerequisites
-- Python 3.8 or higher
-- Required packages: `numpy`, `pandas`, `yfinance`, `numba`, `matplotlib` (optional for plotting)
+The library is ideal for backtesting trading strategies, real-time analysis, and research, with a focus on simplicity and extensibility.
 
-Install dependencies with:
-```bash
-pip install numpy pandas yfinance numba matplotlib
+## Project Structure
+
+The repository is organized as follows:
+
+```
+quantjourney_ti/
+├── __init__.py               # Package initialization and imports
+├── _decorators.py            # Decorators for timing and fallback mechanisms
+├── _errors.py                # Custom error classes for input validation
+├── _indicator_kernels.py     # Numba-optimized functions for indicator calculations
+├── _legacy_/                 # Legacy code (not actively maintained)
+├── _utils.py                 # Utility functions for validation, plotting, and memory optimization
+├── indicators.py             # Main API class (TechnicalIndicators) with public methods
+├── examples/                 # Example scripts demonstrating usage
+│   ├── example_basic.py      # Basic indicator calculations
+│   ├── example_indicators.py # Advanced usage with multiple indicators and plotting
+├── tests/                    # Unit and integration tests
+│   ├── __init__.py
+│   ├── _yf.py                # yfinance test utilities
+│   ├── test_all_indicators.py # Tests for all indicators
+│   ├── test_basic.py         # Basic functionality tests
+│   ├── test_decorators.py    # Decorator tests
+│   ├── test_demo.py          # Demo script tests
+│   ├── test_indicators.py    # Individual indicator tests
+│   ├── test_integration_yf.py # Integration tests with yfinance
+│   ├── test_utils.py         # Utility function tests
+├── quantjourney_ti.egg-info/ # Package metadata (generated, typically in .gitignore)
+├── README.md                 # Project documentation (this file)
+├── LICENSE.md                # License details
+├── setup.py                  # Package installation configuration
 ```
 
-### Usage
+**Note**: The `quantjourney_ti.egg-info` directory is generated during package installation (e.g., `pip install -e .`). It can be safely removed if not using editable mode, and should be included in `.gitignore` to avoid version control.
+
+## Installation
+
 1. Clone the repository:
    ```bash
    git clone https://github.com/QuantJourneyOrg/qj_technical_indicators.git
    cd qj_technical_indicators
    ```
-2. Run the example script:
+
+2. Install dependencies:
    ```bash
-   python try_technical_indicators.py
+   pip install -r requirements.txt
    ```
-   This fetches PL data from yfinance and computes indicators, logging execution times.
 
-## 📋 Example Output
+3. Install the package in editable mode:
+   ```bash
+   pip install -e .
+   ```
+
+**Requirements**:
+- Python 3.8+
+- `pandas`, `numpy`, `yfinance`, `numba`, `matplotlib`
+
+## Usage
+
+The library provides a `TechnicalIndicators` class for calculating indicators and saving plots. The `examples/run_indicators.py` script fetches PL data, calculates 20 popular indicators, and saves individual plots to an `indicator_plots` directory. Example:
+
+```python
+from quantjourney_ti import TechnicalIndicators
+from quantjourney_ti._utils import plot_indicators
+import pandas as pd
+import yfinance as yf
+import os
+
+# Fetch data
+df = yf.download("PL", start="2024-01-01", end="2025-02-01")
+df.columns = df.columns.str.lower().str.replace(' ', '_')
+df["volume"] = df["volume"].replace(0, np.nan).ffill()
+
+# Calculate indicators
+ti = TechnicalIndicators()
+indicators = [
+    ("SMA", lambda: ti.SMA(df["close"], period=14)),
+    ("EMA", lambda: ti.EMA(df["close"], period=14)),
+    # ... 18 more indicators
+]
+results = {name: func() for name, func in indicators}
+
+# Save plots
+os.makedirs("indicator_plots", exist_ok=True)
+for name, result in results.items():
+    plot_indicators_dict = {name: result if isinstance(result, pd.Series) else result.iloc[:, 0]}
+    plot_indicators(df, plot_indicators_dict, title=f"{name} Indicator", save_path=f"indicator_plots/{name}_plot.png")
 ```
-2025-04-09 10:00:00 - INFO - Fetching PL data from yfinance...
-2025-04-09 10:00:01 - INFO - Calculating SMA...
-2025-04-09 10:00:01 - INFO - Finished SMA in 0.0023 seconds
-2025-04-09 10:00:01 - INFO - SMA sample:
-Date
-2024-12-27    150.23
-2024-12-30    150.45
-...
+
+Run the example:
+
+```bash
+python examples/run_indicators.py
 ```
 
-## 🤝 Contributing
-We welcome contributions! To contribute code:
-- **Fork** the repository to your GitHub account.
-- **Clone** your fork locally: `git clone https://github.com/<your-username>/qj_technical_indicators.git`
-- **Create** a feature branch: `git checkout -b feature/your-indicator`
-- **Commit** your changes: `git commit -m "Add your indicator"`
-- **Push** to your fork: `git push origin feature/your-indicator`
-- **Submit** a Pull Request (PR) via GitHub to the `main` branch of this repo.
+**Output**:
+- Console: Last 5 and final values for each indicator.
+- Files: PNG plots in `indicator_plots/` (e.g., `SMA_plot.png`).
 
-All PRs require approval from the repository owner (Jakub Polec) before merging. Please ensure your code is well-documented and tested. For questions, email [jakub@quantjourney.pro](mailto:jakub@quantjourney.pro).
+## 📊 Example Plot
+![Technical Indicator Example](docs/technical_indicator.png)
 
-## 📜 License
-This project is licensed under the MIT License. Feel free to use it in your personal or commercial projects! (License file to be added soon.)
+## Supported Indicators
 
-## Acknowledgements
-- Inspired by the QuantJourney community
-- Built by Jakub Polec
-- Thanks to the open-source community for tools like NumPy and Numba
+The library supports 20 top-used indicators, including:
+- SMA (Simple Moving Average)
+- EMA (Exponential Moving Average)
+- RSI (Relative Strength Index)
+- WILLR (Williams %R)
+- MFI (Money Flow Index)
+- Momentum Index
+- RVI (Relative Vigor Index)
+- AD (Accumulation/Distribution Line)
+- ADOSC (Chaikin A/D Oscillator)
+- Elder Ray (Bull Power)
+- MACD (Moving Average Convergence Divergence)
+- BB_Middle (Bollinger Bands Middle)
+- ATR (Average True Range)
+- STOCH_K (Stochastic %K)
+- CCI (Commodity Channel Index)
+- ROC (Rate of Change)
+- OBV (On-Balance Volume)
+- VWAP (Volume Weighted Average Price)
+- DEMA (Double Exponential Moving Average)
+- ALMA (Arnaud Legoux Moving Average)
 
-Happy coding, and let’s make financial analysis faster and better together!
+See `indicators.py` for the full list and parameters.
+
+## Development
+
+To contribute:
+1. Fork the repository and create a branch.
+2. Add new indicators in `_indicator_kernels.py` with Numba optimization.
+3. Define public methods in `indicators.py`.
+4. Update tests in `tests/`.
+5. Submit a pull request.
+
+**Testing**:
+```bash
+pytest tests/
+```
+
+**Cleaning**:
+Remove generated files:
+```bash
+rm -rf quantjourney_ti.egg-info dist build
+```
+
+## Future Work
+
+- Add more indicators (e.g., PPO, Ichimoku Cloud).
+- Enhance plotting with customizable layouts.
+- Optimize Numba functions for additional edge cases.
+- Support real-time data feeds.
+
+## Contact
+
+For issues or feedback, contact Jakub Polec at [jakub@quantjourney.pro](mailto:jakub@quantjourney.pro) or open an issue on GitHub.

@@ -3,13 +3,40 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
-env/
-venv/
-*.egg-info/
-dist/
 build/
+dist/
+*.egg-info/
+.pytest_cache/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+# Virtual environment
+venv/
+.env
+.env.local
+.env.production
+.env.development
+.venv/
+# Logs
 *.log
+*.out
+*.err   
+# Coverage reports
+.coverage
+*.cover
+*.gcov
+*.lcov
+
+# Configuration files
+*.cfg
+*.ini
+*.json
+*.yaml
+*.yml
+
+# Documentation
+docs/_build/
+*.rst
 
 # OS-specific
 .DS_Store
