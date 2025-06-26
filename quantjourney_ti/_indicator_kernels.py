@@ -101,7 +101,9 @@ def _calculate_adx_numba(
     """Optimized ADX calculation."""
     n = len(high)
     if n == 0 or len(low) != n or len(close) != n or window <= 0:
-        return np.array([]), np.array([]), np.array([])
+        return (np.empty(0, dtype=np.float64), 
+                np.empty(0, dtype=np.float64), 
+                np.empty(0, dtype=np.float64))
     tr = np.full(n, np.nan, dtype=np.float64)
     plus_dm = np.full(n, np.nan, dtype=np.float64)
     minus_dm = np.full(n, np.nan, dtype=np.float64)
@@ -546,7 +548,8 @@ def _calculate_di_numba(
     """Optimized Directional Indicator calculation."""
     n = len(high)
     if n == 0 or len(low) != n or len(close) != n or period <= 0 or period > n:
-        return np.array([]), np.array([])
+        return (np.empty(0, dtype=np.float64), 
+                np.empty(0, dtype=np.float64))        
     plus_dm = np.full(n, np.nan, dtype=np.float64)
     minus_dm = np.full(n, np.nan, dtype=np.float64)
     tr = np.full(n, np.nan, dtype=np.float64)
