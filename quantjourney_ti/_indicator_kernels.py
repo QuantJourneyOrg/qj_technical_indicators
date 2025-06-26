@@ -192,7 +192,7 @@ def _calculate_aroon_numba(
     """Optimized Aroon Indicator calculation."""
     n = len(high)
     if n == 0 or len(low) != n or period <= 0 or period > n:
-        return np.array([]), np.array([])
+        return np.full(n, np.nan, dtype=np.float64), np.full(n, np.nan, dtype=np.float64)
     aroon_up = np.full(n, np.nan, dtype=np.float64)
     aroon_down = np.full(n, np.nan, dtype=np.float64)
     for i in range(period, n):
@@ -978,8 +978,8 @@ def _calculate_kdj_numba(
             continue
         sum_k = 0.0
         count = 0
-        for j in range(i - d_period + 1, i + 1):
-            sum_k += k[j]
+        for idx in range(i - d_period + 1, i + 1):
+            sum_k += k[idx]
             count += 1
         if count > 0:
             d[i] = sum_k / count
