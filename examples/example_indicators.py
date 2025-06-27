@@ -55,9 +55,9 @@ def fetch_data(ticker="AAPL", start="2024-01-01", end="2025-02-01"):
 
     # Flatten yfinance MultiIndex
     if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0).str.lower()
+        df.columns = df.columns.get_level_values(0).str.lower().str.replace(' ', '_')
     else:
-        df.columns = df.columns.str.lower()
+        df.columns = df.columns.str.lower().str.replace(' ', '_')
 
     df = df.rename(columns={"adj close": "adj_close"})
 

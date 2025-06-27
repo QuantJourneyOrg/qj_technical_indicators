@@ -88,7 +88,10 @@ import os
 
 # Fetch data
 df = yf.download("PL", start="2024-01-01", end="2025-02-01")
-df.columns = df.columns.str.lower().str.replace(' ', '_')
+if isinstance(df.columns, pd.MultiIndex):
+    df.columns = df.columns.get_level_values(0).str.lower().str.replace(' ', '_')
+else:
+    df.columns = df.columns.str.lower().str.replace(' ', '_')
 df["volume"] = df["volume"].replace(0, np.nan).ffill()
 
 # Calculate indicators

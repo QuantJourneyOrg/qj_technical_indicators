@@ -18,7 +18,10 @@ TICKER = "AAPL"
 @pytest.fixture(scope="module")
 def price_df():
     try:
-        df = get_ohlcv(TICKER, period="3mo", interval="1d").rename(columns=str.lower)
+        df = get_ohlcv(TICKER, period="3mo", interval="1d")
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+        df = df.rename(columns=str.lower)
     except Exception as exc:  # pragma: no cover
         pytest.skip(f"yfinance unavailable or network error: {exc}")
     return df

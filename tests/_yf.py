@@ -54,6 +54,8 @@ def get_ohlcv(
         if df.empty:
             raise ValueError(f"No data for {ticker}")
         # Ensure consistent column names
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
         return df.rename(columns=str.lower)
     except Exception as exc:
         raise RuntimeError(f"Failed to fetch data for {ticker}: {exc}") from exc
