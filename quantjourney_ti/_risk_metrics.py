@@ -261,17 +261,23 @@ def calculate_risk_metrics(
     else:
         prices = data
     
-    # Determine if data is prices or returns
-    if prices.min() > 0 and prices.max() / prices.min() > 2:
-        # Likely prices, calculate returns
-        returns = prices.pct_change().dropna()
-        is_prices = True
-    else:
-        # Likely returns
-        returns = prices.dropna()
+    # Determine if data is prices or returns using magnitude heuristic
+    # Heuristic: if values are small in magnitude (typical returns), treat as returns;
+    # otherwise treat as prices.
+    series = prices.dropna()
+    abs_max = float(series.abs().max()) if not series.empty else 0.0
+    abs_median = float(series.abs().median()) if not series.empty else 0.0
+    looks_like_returns = (abs_max <= 2.0 and abs_median <= 0.5)
+
+    if looks_like_returns:
+        # Treat as returns
+        returns = series
         is_prices = False
-        # Reconstruct prices for drawdown calculation
         prices = (1 + returns).cumprod()
+    else:
+        # Treat as prices
+        returns = series.pct_change().dropna()
+        is_prices = True
     
     returns_np = returns.values.astype(np.float64)
     prices_np = prices.values.astype(np.float64)

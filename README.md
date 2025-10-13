@@ -37,6 +37,36 @@ start_logging_queue()  # enable QueueHandler + background consumer thread
 
 The library is ideal for backtesting trading strategies, real-time analysis, and research, with a focus on simplicity and extensibility.
 
+### Recent Improvements
+
+- DataFrame inputs with only `adj_close` are now auto-normalized for indicators that require a `close` column.
+- `SMA` gains a lightweight cache via `@cached_indicator` to speed repeat calls on unchanged inputs.
+- Streaming buffers now respect the constructor’s `max_buffer_size` argument.
+- Risk metrics correctly detect constant price series as prices (max drawdown = 0).
+- Validation utilities and logging were streamlined to improve robustness in mixed environments.
+
+### Caching
+
+Some indicators support lightweight caching to avoid repeated computation on identical inputs.
+
+- The `@cached_indicator(ttl_seconds=3600)` decorator enables memoization with a time‑to‑live.
+- Inputs are hashed by content (values + index) to detect duplicates safely.
+- Example: `SMA` uses caching out of the box.
+
+Cache control utilities:
+
+```python
+from quantjourney_ti import get_cache_stats, clear_indicator_cache
+
+# View cache statistics
+print(get_cache_stats())
+
+# Clear all cached entries
+clear_indicator_cache()
+```
+
+To add caching to your own wrappers, apply `@cached_indicator` above your method. Choose an appropriate TTL for your workload.
+
 ## Project Structure
 
 The repository is organized as follows:
@@ -95,7 +125,7 @@ quantjourney_ti/
    ```
 
 **Requirements**:
-- Python 3.8+
+- Python 3.11–3.14
 - `pandas`, `numpy`, `yfinance`, `numba`, `matplotlib`
 
 ## Usage
@@ -197,7 +227,11 @@ To contribute:
 
 **Testing**:
 ```bash
-pytest tests/
+# Core tests (no network):
+pytest -m "not slow"  # skips network-dependent tests
+
+# Full suite including yfinance examples (requires network + optional extras):
+pytest
 ```
 
 **Cleaning**:

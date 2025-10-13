@@ -44,6 +44,15 @@ if not any(t.name == 'quantjourney_queue_processor' for t in threading.enumerate
 
 # Basic validators and helpers ---------------------------------------------------
 
+# Helper for numeric index detection (avoid deprecated Index.is_numeric)
+from pandas.api.types import is_numeric_dtype
+
+def _is_numeric_index(idx: pd.Index) -> bool:
+    try:
+        return is_numeric_dtype(idx.dtype)
+    except Exception:
+        return False
+
 def validate_data(
     data: Union[pd.DataFrame, pd.Series], 
     required_columns: List[str] | None = None,
@@ -84,11 +93,27 @@ def validate_data(
                 context={"missing_columns": missing}
             )
         for col in required_columns:
-            if not np.issubdtype(data[col].dtype, np.number):
+            try:
+                sel = data[col]
+            except Exception:
                 raise InvalidInputError(
-                    message=f"Column '{col}' must contain numeric data",
-                    context={"column": col, "dtype": str(data[col].dtype)}
+                    message=f"Missing required column '{col}'",
+                    context={"available_columns": list(data.columns)}
                 )
+            if isinstance(sel, pd.DataFrame):
+                # MultiIndex column selection yields a sub-DataFrame (e.g., single ticker); ensure all numeric
+                non_numeric = [str(dt) for dt in sel.dtypes.values if not np.issubdtype(dt, np.number)]
+                if non_numeric:
+                    raise InvalidInputError(
+                        message=f"Column '{col}' must contain numeric data",
+                        context={"column": col, "dtypes": non_numeric}
+                    )
+            else:
+                if not np.issubdtype(sel.dtype, np.number):
+                    raise InvalidInputError(
+                        message=f"Column '{col}' must contain numeric data",
+                        context={"column": col, "dtype": str(sel.dtype)}
+                    )
     
     if len(data) < min_data_points:
         raise InvalidInputError(
@@ -97,9 +122,9 @@ def validate_data(
         )
     
     # Enhanced index validation for market data
-    if not (isinstance(data.index, (pd.DatetimeIndex, pd.RangeIndex)) or data.index.is_numeric()):
+    if not (isinstance(data.index, (pd.DatetimeIndex, pd.RangeIndex)) or _is_numeric_index(data.index)):
         raise InvalidInputError(
-            message="Index must be datetime, numeric, or range index",
+            message="Index must be datetime or numeric",
             context={"index_type": type(data.index).__name__}
         )
     
@@ -168,7 +193,7 @@ def validate_and_get_prices(
                 message="Series must contain numeric data",
                 context={"dtype": str(data.dtype)}
             )
-        if not (isinstance(data.index, pd.DatetimeIndex) or data.index.is_numeric()):
+        if not (isinstance(data.index, pd.DatetimeIndex) or _is_numeric_index(data.index)):
             raise InvalidInputError(
                 message="Index must be datetime or numeric",
                 context={"index_type": type(data.index).__name__}
@@ -191,6 +216,29 @@ def validate_and_get_prices(
             if "close" in data.columns:
                 price_col = "close"
             else:
+                # If this is a single-column DataFrame (e.g., yfinance close selection
+                # with MultiIndex reduced to one ticker), treat that column as prices.
+                if data.shape[1] == 1 and np.issubdtype(data.iloc[:, 0].dtype, np.number):
+                    series = data.iloc[:, 0]
+                    # Validate index constraints for the series
+                    if not (isinstance(series.index, pd.DatetimeIndex) or _is_numeric_index(series.index)):
+                        raise InvalidInputError(
+                            message="Index must be datetime or numeric",
+                            context={"index_type": type(series.index).__name__}
+                        )
+                    if not series.index.is_monotonic_increasing:
+                        raise InvalidInputError(
+                            message="Index must be monotonically increasing",
+                            context={"index_head": str(series.index[:5])}
+                        )
+                    if series.index.has_duplicates:
+                        raise InvalidInputError(
+                            message="Index contains duplicate values",
+                            context={"duplicate_indices": str(series.index[series.index.duplicated()])}
+                        )
+                    if series.isnull().any():
+                        logger.warning("Series contains NaN values; they will be handled in calculations")
+                    return series
                 raise InvalidInputError(
                     message=f"Neither '{price_col}' nor 'close' found in DataFrame",
                     context={"available_columns": list(data.columns)}
@@ -200,7 +248,7 @@ def validate_and_get_prices(
                 message=f"Column '{price_col}' must contain numeric data",
                 context={"column": price_col, "dtype": str(data[price_col].dtype)}
             )
-        if not (isinstance(data.index, pd.DatetimeIndex) or data.index.is_numeric()):
+        if not (isinstance(data.index, pd.DatetimeIndex) or _is_numeric_index(data.index)):
             raise InvalidInputError(
                 message="Index must be datetime or numeric",
                 context={"index_type": type(data.index).__name__}

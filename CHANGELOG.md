@@ -24,6 +24,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed column naming mismatches (`close` vs. `adj_close`) in input validation and tests.
 - Corrected dimensionality issues in `RAINBOW` output.
 
+### Maintenance
+- indicators.py: removed stray `#"""` and an unrelated pasted DEMA comment block; eliminated false positive “unterminated docstring”.
+- indicators.py: `validate_market_data` now correctly returns the fixed DataFrame and uses simple forward-filling for small gaps (`limit=3`).
+- indicators.py: added L1 caching to `SMA` via `@cached_indicator`.
+- indicators.py: auto-normalize OHLCV DataFrames so methods that require `'close'` also work when only `'adj_close'` is present.
+- indicators.py: improved queue logging setup to avoid duplicate console handlers when enabling queue mode.
+- indicators.py: improved cache key in `calculate_multiple_indicators` to use content-based hashing (values + index) instead of `to_string()`.
+- _streaming.py: ensure per-symbol buffers respect `max_buffer_size`, fixing buffer length invariant tests.
+- _risk_metrics.py: better detection of price vs. return series (constant price series no longer produce non-zero max drawdown).
+- _performance.py: `MemoryManager.get_memory_usage` excludes the index from per-column stats to match expectations.
+- _utils.py: harmonized index validation error message to match tests.
+
 ## [0.2.0] - 2025-01-01
 ### Added
 - Initial release of `quantjourney_ti` with Numba-optimized technical indicators.

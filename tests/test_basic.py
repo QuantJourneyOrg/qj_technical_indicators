@@ -14,7 +14,7 @@ class TestPackageBasics:
     def test_import(self):
         """Test that the package imports correctly."""
         assert hasattr(qti, "__version__")
-        assert qti.__version__ == "0.2.0"
+        assert qti.__version__ == "0.3.1"
         assert hasattr(qti, "__author__")
         assert qti.__author__ == "Jakub Polec"
 

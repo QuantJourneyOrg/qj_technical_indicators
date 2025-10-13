@@ -1,56 +1,45 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools<75", "wheel", "build"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "quantjourney-ti"
-version = "0.2.1"
-authors = [
-  { name = "Jakub Polec", email = "jakub@quantjourney.pro" },
-]
+version = "0.3.1"
 description = "Comprehensive technical indicators for financial data."
 readme = "README.md"
 requires-python = ">=3.11,<3.15"
-license = "MIT"
+authors = [{ name = "Jakub Polec", email = "jakub@quantjourney.pro" }]
+license = { file = "LICENSE" }        # OK with setuptools<75
 keywords = ["financial", "technical analysis", "indicators", "quant", "numba"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "Intended Audience :: Financial and Insurance Industry",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Operating System :: OS Independent",
-    "Topic :: Office/Business :: Financial :: Investment",
-    "Topic :: Software Development :: Libraries :: Python Modules",
+  "License :: OSI Approved :: MIT License",
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Financial and Insurance Industry",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Operating System :: OS Independent",
+  "Topic :: Office/Business :: Financial :: Investment",
+  "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "numpy>=1.26.0",
-    "pandas>=2.0.0,<3.0",
-    "numba>=0.59.0",
-    "scipy>=1.11.0,<2.0"
+  "numpy>=1.26.0",
+  "pandas>=2.0.0,<3.0",
+  "numba>=0.59.0",
+  "scipy>=1.11.0,<2.0",
 ]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.4.0",
-    "pytest-cov>=4.0.0",
-    "black>=24.0.0",
-    "flake8>=6.0.0",
-    "isort>=5.12.0",
-    "mypy>=1.5.0",
-]
-test = ["pytest"]
-plot = ["matplotlib>=3.5.0"]
-yf = ["yfinance>=0.2.0"]
 
 [project.urls]
 Homepage = "https://quantjourney.substack.com"
 Repository = "https://github.com/QuantJourneyOrg/qj_technical_indicators"
 "Bug Tracker" = "https://github.com/QuantJourneyOrg/qj_technical_indicators/issues"
 
-[tool.setuptools.packages.find]
+[tool.setuptools]                    # ← correct table
+license-files = []                   # ← disables emitting License-File header
+
+[tool.setuptools.packages.find]      # ← keep package discovery here only
 where = ["."]
 include = ["quantjourney_ti*"]
 
@@ -60,9 +49,7 @@ addopts = "--strict-markers --import-mode=importlib -v"
 pythonpath = ["."]
 testpaths = ["tests", "_tests"]
 python_files = ["test_*.py"]
-markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-]
+markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
 
 [tool.black]
 line-length = 88

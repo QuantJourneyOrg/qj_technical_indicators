@@ -99,12 +99,32 @@ class IndicatorCache:
         hashable_args = []
         for arg in args:
             if isinstance(arg, (pd.Series, pd.DataFrame)):
-                # Use shape, dtype, and hash of first/last few values
+                # Use shape, dtypes, and hash of first/last few values
                 if len(arg) > 10:
                     sample = pd.concat([arg.head(5), arg.tail(5)])
                 else:
                     sample = arg
-                hashable_args.append((arg.shape, str(arg.dtype), hash(tuple(sample.values.flatten()))))
+                if isinstance(arg, pd.Series):
+                    dtypes_repr = str(arg.dtype)
+                else:
+                    # DataFrame: tuple of dtype strings in column order
+                    dtypes_repr = tuple(str(dt) for dt in arg.dtypes.values)
+                try:
+                    # Prefer content-based stable hash
+                    if isinstance(sample, pd.Series):
+                        hv = pd.util.hash_pandas_object(sample, index=True).values
+                        content_hash = int(hashlib.md5(hv.tobytes()).hexdigest(), 16)
+                    else:
+                        # DataFrame: combine column-wise hashes
+                        col_hashes = []
+                        for col in sample.columns:
+                            hv = pd.util.hash_pandas_object(sample[col], index=True).values
+                            col_hashes.append(hashlib.md5(hv.tobytes()).digest())
+                        content_hash = int(hashlib.md5(b"".join(col_hashes)).hexdigest(), 16)
+                except Exception:
+                    # Fallback to plain value sampling
+                    content_hash = hash(tuple(sample.values.flatten()))
+                hashable_args.append((arg.shape, dtypes_repr, content_hash))
             else:
                 hashable_args.append(arg)
         
@@ -287,10 +307,11 @@ class MemoryManager:
     def get_memory_usage(obj) -> Dict[str, float]:
         """Get memory usage statistics for an object."""
         if isinstance(obj, pd.DataFrame):
-            memory_usage = obj.memory_usage(deep=True)
+            # Exclude index from per-column stats to match test expectations
+            per_col = obj.memory_usage(index=False, deep=True)
             return {
-                'total_mb': memory_usage.sum() / 1024 / 1024,
-                'per_column_mb': (memory_usage / 1024 / 1024).to_dict()
+                'total_mb': per_col.sum() / 1024 / 1024,
+                'per_column_mb': (per_col / 1024 / 1024).to_dict()
             }
         elif isinstance(obj, pd.Series):
             memory_usage = obj.memory_usage(deep=True)

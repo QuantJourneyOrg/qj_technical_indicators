@@ -116,7 +116,7 @@ __all__ = [
 __author__ = "Jakub Polec"
 __email__ = "jakub@quantjourney.pro"
 __url__ = "https://quantjourney.substack.com"
-__version__ = "0.2.1"  # Sync with pyproject.toml
+__version__ = "0.3.1"
 
 # Dynamic wrappers for TechnicalIndicators methods
 for _name in dir(TechnicalIndicators):

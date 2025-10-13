@@ -67,7 +67,11 @@ class StreamingIndicators:
     def _get_or_create_state(self, symbol: str) -> StreamingState:
         """Get or create streaming state for a symbol."""
         if symbol not in self.states:
-            self.states[symbol] = StreamingState()
+            st = StreamingState()
+            # Ensure buffer respects instance max_buffer_size
+            from collections import deque as _deque
+            st.buffer = _deque(maxlen=self.max_buffer_size)
+            self.states[symbol] = st
         return self.states[symbol]
     
     def _notify_callback(self, symbol: str, indicator: str, value: float, timestamp: pd.Timestamp):

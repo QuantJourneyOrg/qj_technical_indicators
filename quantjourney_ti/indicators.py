@@ -43,14 +43,13 @@ License: MIT
 
 from __future__ import annotations
 
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Optional, Any
 import numpy as np
 import pandas as pd
 from importlib import import_module
 from types import ModuleType
 from collections import OrderedDict
 import threading
-import json
 
 import logging
 logger = logging.getLogger(__name__)
@@ -80,6 +79,10 @@ def start_logging_queue() -> None:
     fmt = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     qh.setFormatter(fmt)
     sh.setFormatter(fmt)
+    # Switch to queue-based logging: remove existing non-queue handlers first
+    for h in list(logger.handlers):
+        if not isinstance(h, logging.handlers.QueueHandler):
+            logger.removeHandler(h)
     logger.addHandler(qh)
 
     def _process():
@@ -93,13 +96,12 @@ def start_logging_queue() -> None:
     th.start()
 
 from ._utils import *
-from .kernels import *  # noqa: F403,F401
 from ._decorators import numba_fallback
 from ._risk_metrics import calculate_risk_metrics
 from ._performance import cached_indicator, profile_performance
 from ._streaming import StreamingIndicators
 
-_kernels = import_module("quantjourney_ti.kernels")
+# Kernels are attached dynamically at the end from _indicator_kernels
 
 
 class TechnicalIndicators:
@@ -144,6 +146,7 @@ class TechnicalIndicators:
                 sma[i] = np.mean(prices_np[i - period + 1:i + 1])
         return pd.Series(sma, index=prices.index, name=f"SMA_{period}")
 
+    @cached_indicator(ttl_seconds=3600)
     @numba_fallback(_sma_fallback)
     def SMA(self, data: Union[pd.Series, pd.DataFrame], period: int = 20) -> pd.Series:
         """
@@ -856,37 +859,17 @@ class TechnicalIndicators:
         fixed_data = data.copy()
         
         if isinstance(fixed_data, pd.DataFrame):
-            # Handle zero volume
+            # Handle zero volume (treat zeros as missing, then forward-fill)
             if 'volume' in fixed_data.columns:
                 fixed_data['volume'] = fixed_data['volume'].replace(0, np.nan).ffill()
             
-            # Forward fill small gaps (up to 3 consecutive NaNs)
+            # Forward fill small gaps (limit to 3 consecutive NaNs) for numeric columns
+            from pandas.api.types import is_any_real_numeric_dtype
             for col in fixed_data.columns:
-                if fixed_data[col].dtype in [np.float64, np.float32]:
-                    # Only fill small gaps
-                    mask = fixed_data[col].isnull()
-                    gap_sizes = mask.groupby((~mask).cumsum()).sum()
-                    small_gaps = gap_sizes <= 3
-                    
-                    for gap_id, is_small in small_gaps.items():
-                        if is_small and gap_sizes[gap_id] > 0:
-                            gap_mask = (mask.groupby((~mask).cumsum()).ngroup() == gap_id - 1) & mask
-                            fixed_data.loc[gap_mask, col] = fixed_data[col].ffill()
-        
-        return fixed_dataa fails.
-        Logs a warning if fallback is used.
+                if is_any_real_numeric_dtype(fixed_data[col]):
+                    fixed_data[col] = fixed_data[col].ffill(limit=3)
 
-        Args:
-            data: Price series or DataFrame with 'adj_close' or 'close' column.
-            period: Number of periods for DEMA calculation (default: 20).
-
-        Returns:
-            pandas Series with DEMA values.
-        """
-        prices = self._validate_and_get_prices(data)
-        dema = self._calculate_dema_numba(prices.values, period)
-        dema[: period - 1] = np.nan
-        return pd.Series(dema, index=prices.index, name=f"DEMA_{period}")
+        return fixed_data
 
     def _kama_fallback(
         self,
@@ -897,16 +880,24 @@ class TechnicalIndicators:
     ) -> pd.Series:
         """Fallback calculation for KAMA using pandas."""
         prices = self._validate_and_get_prices(data)
+        if len(prices) == 0:
+            return pd.Series([], dtype=float, name=f"KAMA_{er_period}")
+        # If insufficient data for er_period, return all-NaN series
+        if len(prices) <= er_period:
+            return pd.Series(np.full(len(prices), np.nan), index=prices.index, name=f"KAMA_{er_period}")
+
         change = prices.diff(er_period).abs()
         volatility = prices.diff().abs().rolling(window=er_period).sum()
         er = change / volatility
+        er = er.replace([np.inf, -np.inf], 0.0).fillna(0.0)
         fast_alpha = 2.0 / (fast_period + 1)
         slow_alpha = 2.0 / (slow_period + 1)
         sc = (er * (fast_alpha - slow_alpha) + slow_alpha) ** 2
         kama = np.full(len(prices), np.nan)
-        kama[er_period] = prices.iloc[er_period] if not np.isnan(prices.iloc[er_period]) else np.nan
+        kama[er_period] = prices.iloc[er_period] if not pd.isna(prices.iloc[er_period]) else np.nan
         for i in range(er_period + 1, len(prices)):
-            if not np.isnan(prices.iloc[i]) and not np.isnan(kama[i - 1]) and not np.isnan(sc.iloc[i]):
+                # update only when prior KAMA and current price/sc are valid
+            if not pd.isna(prices.iloc[i]) and not np.isnan(kama[i - 1]) and not pd.isna(sc.iloc[i]):
                 kama[i] = kama[i - 1] + sc.iloc[i] * (prices.iloc[i] - kama[i - 1])
         return pd.Series(kama, index=prices.index, name=f"KAMA_{er_period}")
 
@@ -1934,8 +1925,14 @@ class TechnicalIndicators:
             if use_cache:
                 params_tuple = tuple(sorted(params.items()))
                 columns_tuple = tuple(sorted(columns)) if columns else ()
-                data_str = data[columns].to_string() if columns else data.to_string()
-                data_hash = hashlib.md5(data_str.encode()).hexdigest()
+                df_for_hash = data[columns] if columns else data
+                # Robust, content-based hash (values + index)
+                try:
+                    hv = pd.util.hash_pandas_object(df_for_hash, index=True).values
+                    data_hash = hashlib.md5(hv.tobytes()).hexdigest()
+                except Exception:
+                    # Fallback to string rep only if hashing fails
+                    data_hash = hashlib.md5(df_for_hash.to_csv(None).encode()).hexdigest()
                 cache_key = (name, params_tuple, columns_tuple, data_hash)
                 
                 with self._cache_lock:
@@ -1978,7 +1975,7 @@ TechnicalIndicators._validate_and_get_prices = staticmethod(validate_and_get_pri
 TechnicalIndicators.validate_window = staticmethod(validate_window)
 TechnicalIndicators.detect_divergence = staticmethod(detect_divergence)
 TechnicalIndicators.detect_crossovers = staticmethod(detect_crossovers)
-TechnicalIndicators.plot_indicators = plot_indicators
+TechnicalIndicators.plot_indicators = staticmethod(plot_indicators)
 TechnicalIndicators._optimize_memory = staticmethod(optimize_memory)
 
 # --- Attach numba kernels as staticmethods -----------------------------------
@@ -1993,3 +1990,56 @@ del _kernels, _name
 _TI_INSTANCE = TechnicalIndicators()
 
 __all__ = ["TechnicalIndicators", "_TI_INSTANCE"]
+
+# --- Auto-normalize DataFrame inputs to include 'close' alias ---------------
+def _normalize_close_df(df: pd.DataFrame) -> pd.DataFrame:
+    if not isinstance(df, pd.DataFrame):
+        return df
+    out = df
+    # If MultiIndex columns with single ticker, collapse ticker level
+    try:
+        if isinstance(out.columns, pd.MultiIndex) and out.columns.nlevels >= 2:
+            lvl0 = [str(v).lower() for v in out.columns.get_level_values(0)]
+            lvl1 = [str(v).lower() for v in out.columns.get_level_values(1)]
+            fields_level = None
+            tick_level = None
+            common_fields = {"open", "high", "low", "close", "adj close", "adj_close", "volume"}
+            if any(v in common_fields for v in lvl0):
+                fields_level, tick_level = 0, 1
+            elif any(v in common_fields for v in lvl1):
+                fields_level, tick_level = 1, 0
+            if fields_level is not None:
+                # If only a single ticker present, drop that level
+                ticks = list(out.columns.get_level_values(tick_level))
+                unique_ticks = sorted(set(ticks), key=lambda x: str(x))
+                if len(unique_ticks) == 1:
+                    out = out.droplevel(tick_level, axis=1)
+    except Exception:
+        pass
+    # Add 'close' alias if missing but 'adj_close' present
+    if ('close' not in out.columns) and ('adj_close' in out.columns):
+        out = out.copy()
+        out['close'] = out['adj_close']
+    return out
+
+def _auto_normalize_close(method):
+    from functools import wraps as _wraps
+    @_wraps(method)
+    def _wrapped(self, *args, **kwargs):
+        if args:
+            first = args[0]
+            if isinstance(first, pd.DataFrame):
+                first = _normalize_close_df(first)
+                args = (first,) + args[1:]
+        return method(self, *args, **kwargs)
+    return _wrapped
+
+# Wrap public methods to normalize 'close' alias for DataFrame inputs
+for _n, _attr in list(TechnicalIndicators.__dict__.items()):
+    if _n.startswith('_'):
+        continue
+    if _n == 'plot_indicators':
+        # Avoid wrapping plotting helper to preserve its call signature
+        continue
+    if callable(_attr):
+        setattr(TechnicalIndicators, _n, _auto_normalize_close(_attr))
