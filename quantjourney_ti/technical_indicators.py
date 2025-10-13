@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+import warnings as _warnings
+_warnings.warn(
+    "quantjourney_ti.technical_indicators is deprecated; use quantjourney_ti.indicators instead",
+    DeprecationWarning,
+    stacklevel=2,
+)
 """
 Technical Indicators Library
 ============================

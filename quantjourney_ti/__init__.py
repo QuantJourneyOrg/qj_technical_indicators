@@ -45,7 +45,7 @@ License: MIT
 
 from __future__ import annotations
 
-from .indicators import TechnicalIndicators
+from .indicators import TechnicalIndicators, start_logging_queue
 from ._decorators import timer, numba_fallback
 from ._utils import (
     validate_data,
@@ -56,22 +56,56 @@ from ._utils import (
     plot_indicators,
     optimize_memory,
 )
+from ._risk_metrics import calculate_risk_metrics
+from ._streaming import StreamingIndicators, StreamingDataFeed, create_streaming_setup
+from ._performance import (
+    cached_indicator,
+    profile_performance,
+    clear_indicator_cache,
+    get_cache_stats,
+    get_performance_stats,
+    get_system_resources,
+    MemoryManager,
+    BatchProcessor
+)
 
 # Initialize shared singleton
 _TI_INSTANCE = TechnicalIndicators()
 
 # Public exports
 __all__ = [
+    # Core classes
     "TechnicalIndicators",
+    "start_logging_queue",
+    "StreamingIndicators", 
+    "StreamingDataFeed",
+    "MemoryManager",
+    "BatchProcessor",
+    
+    # Decorators
     "timer",
     "numba_fallback",
+    "cached_indicator",
+    "profile_performance",
+    
+    # Validation and utilities
     "validate_data",
-    "validate_and_get_prices",
+    "validate_and_get_prices", 
     "validate_window",
     "detect_divergence",
     "detect_crossovers",
     "plot_indicators",
     "optimize_memory",
+    
+    # Risk and performance
+    "calculate_risk_metrics",
+    "create_streaming_setup",
+    "clear_indicator_cache",
+    "get_cache_stats",
+    "get_performance_stats",
+    "get_system_resources",
+    
+    # Metadata
     "__author__",
     "__email__",
     "__url__",
@@ -82,7 +116,7 @@ __all__ = [
 __author__ = "Jakub Polec"
 __email__ = "jakub@quantjourney.pro"
 __url__ = "https://quantjourney.substack.com"
-__version__ = "0.2.0"  # Consider using setuptools_scm for dynamic versioning
+__version__ = "0.2.1"  # Sync with pyproject.toml
 
 # Dynamic wrappers for TechnicalIndicators methods
 for _name in dir(TechnicalIndicators):

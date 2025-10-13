@@ -15,6 +15,26 @@ The QuantJourney Technical Indicators library offers a comprehensive set of tech
 - **Visualization**: Generates individual plots for indicators, saved as PNG files in an `indicator_plots` directory.
 - **Integration**: Works seamlessly with `pandas` DataFrames and `yfinance` for data fetching.
 
+### Extras and Lazy Loading
+
+- Optional extras keep the core lightweight:
+  - `pip install .[yf]` to enable yfinance-based examples/tests
+  - `pip install .[plot]` to enable plotting with matplotlib
+
+- Lazy JIT compile: kernels compile on first use and are cached to disk. You can opt-in to eager compile for lower first-call latency:
+
+```python
+from quantjourney_ti import TechnicalIndicators
+ti = TechnicalIndicators(warmup=True)  # pre-compiles a common subset of kernels
+```
+
+- Logging: queue logging is opt-in to avoid starting background threads on import:
+
+```python
+from quantjourney_ti import start_logging_queue
+start_logging_queue()  # enable QueueHandler + background consumer thread
+```
+
 The library is ideal for backtesting trading strategies, real-time analysis, and research, with a focus on simplicity and extensibility.
 
 ## Project Structure
@@ -64,6 +84,9 @@ quantjourney_ti/
 2. Install dependencies:
    ```bash
    pip install -r requirements.txt
+   # optional extras
+   pip install .[yf]
+   pip install .[plot]
    ```
 
 3. Install the package in editable mode:
@@ -77,7 +100,7 @@ quantjourney_ti/
 
 ## Usage
 
-The library provides a `TechnicalIndicators` class for calculating indicators and saving plots. The `examples/run_indicators.py` script fetches PL data, calculates 20 popular indicators, and saves individual plots to an `indicator_plots` directory. Example:
+The library provides a `TechnicalIndicators` class for calculating indicators and saving plots. See `docs/USAGE.md` for a compact guide and `notebooks/` for interactive examples. Example:
 
 ```python
 from quantjourney_ti import TechnicalIndicators
@@ -86,39 +109,32 @@ import pandas as pd
 import yfinance as yf
 import os
 
-# Fetch data
-df = yf.download("PL", start="2024-01-01", end="2025-02-01")
+# Fetch data (requires extra 'yf')
+df = yf.download("AAPL", start="2024-01-01", end="2025-02-01")
 if isinstance(df.columns, pd.MultiIndex):
     df.columns = df.columns.get_level_values(0).str.lower().str.replace(' ', '_')
 else:
     df.columns = df.columns.str.lower().str.replace(' ', '_')
 df["volume"] = df["volume"].replace(0, np.nan).ffill()
 
-# Calculate indicators
 ti = TechnicalIndicators()
-indicators = [
-    ("SMA", lambda: ti.SMA(df["close"], period=14)),
-    ("EMA", lambda: ti.EMA(df["close"], period=14)),
-    # ... 18 more indicators
-]
-results = {name: func() for name, func in indicators}
-
-# Save plots
-os.makedirs("indicator_plots", exist_ok=True)
-for name, result in results.items():
-    plot_indicators_dict = {name: result if isinstance(result, pd.Series) else result.iloc[:, 0]}
-    plot_indicators(df, plot_indicators_dict, title=f"{name} Indicator", save_path=f"indicator_plots/{name}_plot.png")
+ema = ti.EMA(df["close"], 20)
+rsi = ti.RSI(df["close"], 14)
+macd = ti.MACD(df["close"], 12, 26, 9)
 ```
 
-Run the example:
+Examples:
 
 ```bash
-python examples/run_indicators.py
+python examples/run_basic.py --ticker AAPL --period 6mo
+python examples/run_channels.py --ticker AAPL --period 6mo
+python examples/run_from_csv.py --csv path/to/ohlcv.csv --sep ,
 ```
 
-**Output**:
-- Console: Last 5 and final values for each indicator.
-- Files: PNG plots in `indicator_plots/` (e.g., `SMA_plot.png`).
+**Notebooks**:
+- `notebooks/01_basic_indicators.ipynb`
+- `notebooks/02_channels_and_bands.ipynb`
+- `notebooks/03_streaming_demo.ipynb`
 
 ## 📊 Example Plot
 ![Technical Indicator Example](docs/technical_indicator.png)

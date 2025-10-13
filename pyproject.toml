@@ -29,9 +29,7 @@ dependencies = [
     "numpy>=1.26.0",
     "pandas>=2.0.0,<3.0",
     "numba>=0.59.0",
-    "scipy>=1.11.0,<2.0",
-    "yfinance",
-    "matplotlib>=3.5.0"
+    "scipy>=1.11.0,<2.0"
 ]
 
 [project.optional-dependencies]
@@ -44,6 +42,8 @@ dev = [
     "mypy>=1.5.0",
 ]
 test = ["pytest"]
+plot = ["matplotlib>=3.5.0"]
+yf = ["yfinance>=0.2.0"]
 
 [project.urls]
 Homepage = "https://quantjourney.substack.com"
@@ -58,7 +58,7 @@ include = ["quantjourney_ti*"]
 asyncio_default_fixture_loop_scope = "function"
 addopts = "--strict-markers --import-mode=importlib -v"
 pythonpath = ["."]
-testpaths = ["tests"]
+testpaths = ["tests", "_tests"]
 python_files = ["test_*.py"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",

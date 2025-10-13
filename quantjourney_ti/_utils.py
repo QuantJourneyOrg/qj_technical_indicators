@@ -37,24 +37,30 @@ def process_queue():
             break
         stream_handler.handle(record)
 
-queue_thread = threading.Thread(target=process_queue, daemon=True)
-queue_thread.start()
+# Only start thread if not already running
+if not any(t.name == 'quantjourney_queue_processor' for t in threading.enumerate()):
+    queue_thread = threading.Thread(target=process_queue, daemon=True, name='quantjourney_queue_processor')
+    queue_thread.start()
 
 # Basic validators and helpers ---------------------------------------------------
 
 def validate_data(
-    data: Union[pd.DataFrame, pd.Series], required_columns: List[str] | None = None
+    data: Union[pd.DataFrame, pd.Series], 
+    required_columns: List[str] | None = None,
+    allow_gaps: bool = True,
+    min_data_points: int = 2
 ) -> bool:
     """
-    Validate input data and ensure required columns and index properties are valid.
+    Validate input data with hedge fund friendly gap handling.
 
     Args:
         data: Input DataFrame or Series.
         required_columns: List of required column names (for DataFrame).
+        allow_gaps: Allow non-monotonic data (for market holidays/gaps).
+        min_data_points: Minimum required data points.
 
     Raises:
-        InvalidInputError: If validation fails due to missing columns, insufficient data,
-                           non-numeric/monotonic index, duplicate indices, or empty data.
+        InvalidInputError: If validation fails due to critical issues.
 
     Returns:
         bool: True if validation passes.
@@ -64,6 +70,7 @@ def validate_data(
             message="Input data is empty",
             context={"data_type": type(data).__name__}
         )
+    
     if required_columns:
         if not isinstance(data, pd.DataFrame):
             raise InvalidInputError(
@@ -82,28 +89,55 @@ def validate_data(
                     message=f"Column '{col}' must contain numeric data",
                     context={"column": col, "dtype": str(data[col].dtype)}
                 )
-    if len(data) < 2:
+    
+    if len(data) < min_data_points:
         raise InvalidInputError(
-            message="Data must contain at least 2 rows",
-            context={"data_length": len(data)}
+            message=f"Data must contain at least {min_data_points} rows",
+            context={"data_length": len(data), "required": min_data_points}
         )
-    if not (isinstance(data.index, pd.DatetimeIndex) or data.index.is_numeric()):
+    
+    # Enhanced index validation for market data
+    if not (isinstance(data.index, (pd.DatetimeIndex, pd.RangeIndex)) or data.index.is_numeric()):
         raise InvalidInputError(
-            message="Index must be datetime or numeric",
+            message="Index must be datetime, numeric, or range index",
             context={"index_type": type(data.index).__name__}
         )
-    if not data.index.is_monotonic_increasing:
+    
+    # Relaxed monotonic check for market data
+    if not allow_gaps and not data.index.is_monotonic_increasing:
         raise InvalidInputError(
-            message="Index must be monotonically increasing",
+            message="Index must be monotonically increasing (set allow_gaps=True for market data)",
             context={"index_head": str(data.index[:5])}
         )
+    elif allow_gaps and isinstance(data.index, pd.DatetimeIndex):
+        # Check for reasonable time ordering (allow some gaps)
+        if len(data) > 1:
+            time_diffs = data.index[1:] - data.index[:-1]
+            negative_diffs = time_diffs < pd.Timedelta(0)
+            if negative_diffs.sum() > len(data) * 0.1:  # Allow up to 10% out-of-order
+                logger.warning(f"Found {negative_diffs.sum()} out-of-order timestamps")
+    
+    # Handle duplicates more gracefully
     if data.index.has_duplicates:
-        raise InvalidInputError(
-            message="Index contains duplicate values",
-            context={"duplicate_indices": str(data.index[data.index.duplicated()])}
-        )
+        dup_count = data.index.duplicated().sum()
+        if dup_count > len(data) * 0.05:  # More than 5% duplicates is concerning
+            raise InvalidInputError(
+                message=f"Too many duplicate indices: {dup_count}",
+                context={"duplicate_count": dup_count, "total_rows": len(data)}
+            )
+        else:
+            logger.warning(f"Found {dup_count} duplicate indices - will be handled in calculations")
+    
+    # Enhanced NaN handling
     if data.isnull().any().any():
-        logger.warning("Data contains NaN values; they will be handled in calculations")
+        if isinstance(data, pd.DataFrame):
+            nan_cols = data.columns[data.isnull().any()].tolist()
+            nan_pct = (data.isnull().sum() / len(data) * 100).round(2)
+            logger.warning(f"Data contains NaN values in columns {nan_cols}: {nan_pct.to_dict()}%")
+        else:
+            nan_pct = data.isnull().sum() / len(data) * 100
+            logger.warning(f"Data contains {nan_pct:.2f}% NaN values")
+    
     return True
 
 def validate_and_get_prices(
@@ -276,15 +310,12 @@ def detect_crossovers(series1: pd.Series, series2: pd.Series) -> pd.DataFrame:
         )
     validate_data(series1)
     validate_data(series2)
-    prev_diff = series1 - series2
-    curr_diff = prev_diff.shift(-1)
-    return pd.DataFrame(
-        {
-            "bullish": ((prev_diff < 0) & (curr_diff > 0)).astype(int),
-            "bearish": ((prev_diff > 0) & (curr_diff < 0)).astype(int),
-        },
-        index=series1.index,
-    )
+    diff = series1 - series2
+    prev = diff.shift(1)
+    # Bullish when diff crosses up through zero on current bar
+    bullish = ((prev <= 0) & (diff > 0)).astype(int)
+    bearish = ((prev >= 0) & (diff < 0)).astype(int)
+    return pd.DataFrame({"bullish": bullish, "bearish": bearish}, index=series1.index)
 
 # Plotting helper ------------------------------------------------------------
 

@@ -28,8 +28,14 @@ License: MIT
 """
 
 import numpy as np
-from numba import njit
+from numba import njit as _njit
 from typing import Tuple, Union, Optional
+
+# Ensure all kernels use Numba on-disk caching by default
+def njit(*args, **kwargs):  # type: ignore[misc]
+    if "cache" not in kwargs:
+        kwargs["cache"] = True
+    return _njit(*args, **kwargs)
 
 
 @njit(parallel=False, fastmath=True)

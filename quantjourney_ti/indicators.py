@@ -53,35 +53,53 @@ import threading
 import json
 
 import logging
-import logging.handlers
-from queue import Queue
-import threading
-
 logger = logging.getLogger(__name__)
-queue = Queue()
-queue_handler = logging.handlers.QueueHandler(queue)
-stream_handler = logging.StreamHandler()
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-stream_handler.setFormatter(formatter)
-queue_handler.setFormatter(formatter)
-logger.addHandler(queue_handler)
+if not logger.handlers:
+    # Default to a simple stream handler; opt-in queue logging via start_logging_queue()
+    _h = logging.StreamHandler()
+    _h.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logger.addHandler(_h)
 logger.setLevel(logging.INFO)
 
-def process_queue():
-    while True:
-        record = queue.get()
-        if record is None:
-            break
-        stream_handler.handle(record)
+def start_logging_queue() -> None:
+    """Optionally enable thread-safe queue logging to stdout.
 
-queue_thread = threading.Thread(target=process_queue, daemon=True)
-queue_thread.start()
+    This avoids starting background threads at import time. Call this only if your
+    application benefits from a QueueHandler.
+    """
+    import logging.handlers
+    from queue import Queue
+    import threading
+
+    if any(t.name == 'quantjourney_indicators_processor' for t in threading.enumerate()):
+        return
+
+    queue = Queue()
+    qh = logging.handlers.QueueHandler(queue)
+    sh = logging.StreamHandler()
+    fmt = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    qh.setFormatter(fmt)
+    sh.setFormatter(fmt)
+    logger.addHandler(qh)
+
+    def _process():
+        while True:
+            rec = queue.get()
+            if rec is None:
+                break
+            sh.handle(rec)
+
+    th = threading.Thread(target=_process, daemon=True, name='quantjourney_indicators_processor')
+    th.start()
 
 from ._utils import *
-from ._indicator_kernels import *  # noqa: F403,F401
+from .kernels import *  # noqa: F403,F401
 from ._decorators import numba_fallback
+from ._risk_metrics import calculate_risk_metrics
+from ._performance import cached_indicator, profile_performance
+from ._streaming import StreamingIndicators
 
-_kernels = import_module("quantjourney_ti._indicator_kernels")
+_kernels = import_module("quantjourney_ti.kernels")
 
 
 class TechnicalIndicators:
@@ -97,21 +115,24 @@ class TechnicalIndicators:
     with warnings logged for debugging.
     """
 
-    def __init__(self):
+    def __init__(self, warmup: bool = False):
         """
         Initialize the TechnicalIndicators class.
 
         Ensures Numba kernels are JIT-compiled by calling them with dummy data.
         """
+        if warmup:
+            self.warmup()
+
+    def warmup(self) -> None:
+        """Compile a representative subset of kernels eagerly."""
         dummy_array = np.ones(10, dtype=np.float64)
         self._calculate_sma_numba(dummy_array, 5)
         self._calculate_ema_numba(dummy_array, 5)
         self._calculate_rsi_numba(dummy_array, 5)
         self._calculate_macd_numba(dummy_array, 5, 5, 5)
         self._calculate_bollinger_bands_numba(dummy_array, 5, 5)
-        self._calculate_cci_numba(dummy_array, dummy_array, dummy_array, 5)
         self._calculate_roc_numba(dummy_array, 5)
-        self._calculate_willr_numba(dummy_array, dummy_array, dummy_array, 5)
 
     def _sma_fallback(self, data: Union[pd.Series, pd.DataFrame], period: int = 20) -> pd.Series:
         """Fallback calculation for SMA using numpy."""
@@ -725,6 +746,134 @@ class TechnicalIndicators:
         Calculate Double Exponential Moving Average.
 
         Uses Numba for performance but falls back to pandas if Numba fails.
+        Logs a warning if fallback is used.
+
+        Args:
+            data: Price series or DataFrame with 'adj_close' or 'close' column.
+            period: Number of periods for DEMA calculation (default: 20).
+
+        Returns:
+            pandas Series with DEMA values.
+        """
+        prices = self._validate_and_get_prices(data)
+        dema = self._calculate_dema_numba(prices.values, period)
+        dema[: period - 1] = np.nan
+        return pd.Series(dema, index=prices.index, name=f"DEMA_{period}")
+
+    # Hedge Fund Specific Methods ===============================================
+    
+    @cached_indicator(ttl_seconds=1800)  # 30 minute cache
+    def RISK_METRICS(
+        self, 
+        data: Union[pd.Series, pd.DataFrame],
+        benchmark: Optional[pd.Series] = None,
+        risk_free_rate: float = 0.02,
+        periods_per_year: int = 252,
+        confidence_level: float = 0.05
+    ) -> pd.Series:
+        """
+        Calculate comprehensive risk metrics for hedge fund analysis.
+        
+        Args:
+            data: Price or return series
+            benchmark: Benchmark series for relative metrics
+            risk_free_rate: Annual risk-free rate (default: 2%)
+            periods_per_year: Trading periods per year (default: 252)
+            confidence_level: Confidence level for VaR/CVaR (default: 5%)
+        
+        Returns:
+            Series with calculated risk metrics including Sharpe, Sortino, VaR, etc.
+        """
+        return calculate_risk_metrics(
+            data=data,
+            benchmark=benchmark,
+            risk_free_rate=risk_free_rate,
+            periods_per_year=periods_per_year,
+            confidence_level=confidence_level
+        )
+    
+    def create_streaming_indicators(self, max_buffer_size: int = 1000) -> StreamingIndicators:
+        """
+        Create a streaming indicators instance for real-time processing.
+        
+        Args:
+            max_buffer_size: Maximum number of historical values to keep
+            
+        Returns:
+            StreamingIndicators instance
+        """
+        return StreamingIndicators(max_buffer_size=max_buffer_size)
+    
+    @profile_performance(include_memory=True)
+    def batch_calculate(
+        self, 
+        data_dict: Dict[str, pd.DataFrame], 
+        indicator_name: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Calculate indicators for multiple symbols efficiently.
+        
+        Args:
+            data_dict: Dictionary of symbol -> DataFrame
+            indicator_name: Name of indicator method to call
+            **kwargs: Arguments for indicator function
+            
+        Returns:
+            Dictionary of symbol -> indicator results
+        """
+        from ._performance import BatchProcessor
+        
+        processor = BatchProcessor()
+        indicator_func = getattr(self, indicator_name.upper())
+        
+        return processor.process_symbols(data_dict, indicator_func, **kwargs)
+    
+    def validate_market_data(
+        self, 
+        data: Union[pd.DataFrame, pd.Series],
+        allow_gaps: bool = True,
+        fix_common_issues: bool = True
+    ) -> Union[pd.DataFrame, pd.Series]:
+        """
+        Validate and optionally fix common market data issues.
+        
+        Args:
+            data: Market data to validate
+            allow_gaps: Allow gaps in data (holidays, etc.)
+            fix_common_issues: Attempt to fix common data issues
+            
+        Returns:
+            Validated (and optionally fixed) data
+        """
+        # Use enhanced validation
+        validate_data(data, allow_gaps=allow_gaps)
+        
+        if not fix_common_issues:
+            return data
+        
+        # Fix common issues
+        fixed_data = data.copy()
+        
+        if isinstance(fixed_data, pd.DataFrame):
+            # Handle zero volume
+            if 'volume' in fixed_data.columns:
+                fixed_data['volume'] = fixed_data['volume'].replace(0, np.nan).ffill()
+            
+            # Forward fill small gaps (up to 3 consecutive NaNs)
+            for col in fixed_data.columns:
+                if fixed_data[col].dtype in [np.float64, np.float32]:
+                    # Only fill small gaps
+                    mask = fixed_data[col].isnull()
+                    gap_sizes = mask.groupby((~mask).cumsum()).sum()
+                    small_gaps = gap_sizes <= 3
+                    
+                    for gap_id, is_small in small_gaps.items():
+                        if is_small and gap_sizes[gap_id] > 0:
+                            gap_mask = (mask.groupby((~mask).cumsum()).ngroup() == gap_id - 1) & mask
+                            fixed_data.loc[gap_mask, col] = fixed_data[col].ffill()
+        
+        return fixed_dataa fails.
         Logs a warning if fallback is used.
 
         Args:
@@ -1461,28 +1610,7 @@ class TechnicalIndicators:
             index=data.index,
         )
 
-    def BENFORD_LAW(self, data: Union[pd.Series, pd.DataFrame]) -> pd.DataFrame:
-        """
-        Calculate Benford's Law distribution.
 
-        Args:
-            data: Price series or DataFrame with 'adj_close' or 'close' column.
-
-        Returns:
-            pandas DataFrame with Observed and Expected frequencies.
-        """
-        prices = self._validate_and_get_prices(data)
-        def first_digit(x):
-            try:
-                return int(str(abs(x)).strip("0.")[0])
-            except (ValueError, IndexError):
-                return np.nan
-        first_digits = prices.apply(first_digit)
-        observed_freq = first_digits.value_counts(normalize=True).sort_index()
-        expected_freq = pd.Series(
-            [np.log10(1 + 1 / d) for d in range(1, 10)], index=range(1, 10)
-        )
-        return pd.DataFrame({"Observed": observed_freq, "Expected": expected_freq})
 
     @numba_fallback(lambda self, data: pd.Series(np.nan, index=data.index, name="OBV"))
     def OBV(self, data: pd.DataFrame) -> pd.Series:
