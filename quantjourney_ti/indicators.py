@@ -1929,10 +1929,12 @@ class TechnicalIndicators:
                 # Robust, content-based hash (values + index)
                 try:
                     hv = pd.util.hash_pandas_object(df_for_hash, index=True).values
-                    data_hash = hashlib.md5(hv.tobytes()).hexdigest()
+                    data_hash = hashlib.blake2b(hv.tobytes(), digest_size=16).hexdigest()
                 except Exception:
                     # Fallback to string rep only if hashing fails
-                    data_hash = hashlib.md5(df_for_hash.to_csv(None).encode()).hexdigest()
+                    data_hash = hashlib.blake2b(
+                        df_for_hash.to_csv(None).encode(), digest_size=16
+                    ).hexdigest()
                 cache_key = (name, params_tuple, columns_tuple, data_hash)
                 
                 with self._cache_lock:

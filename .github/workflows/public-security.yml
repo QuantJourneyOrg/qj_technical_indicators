@@ -1,0 +1,20 @@
+name: Public Repository Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "31 5 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  public-security:
+    uses: QuantJourneyOrg/.github/.github/workflows/public-python-security.yml@main
+    with:
+      python-version: "3.11"
+      install-command: python -m pip install -e . pytest pytest-asyncio
+      test-command: pytest -q tests/test_cache_correctness.py tests/test_utils_crossovers.py

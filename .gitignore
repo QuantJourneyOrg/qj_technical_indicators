@@ -33,6 +33,9 @@ venv/
 *.json
 *.yaml
 *.yml
+!.github/
+!.github/workflows/
+!.github/workflows/*.yml
 
 # Documentation
 *.rst

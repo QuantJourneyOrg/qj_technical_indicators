@@ -152,15 +152,12 @@ class TechnicalIndicators:
         crossovers["bullish"] = 0
         crossovers["bearish"] = 0
 
-        # Previous state
-        prev_diff = series1 - series2
-
-        # Current state
-        curr_diff = prev_diff.shift(-1)
+        curr_diff = series1 - series2
+        prev_diff = curr_diff.shift(1)
 
         # Detect crossovers
-        crossovers["bullish"] = ((prev_diff < 0) & (curr_diff > 0)).astype(int)
-        crossovers["bearish"] = ((prev_diff > 0) & (curr_diff < 0)).astype(int)
+        crossovers["bullish"] = ((prev_diff <= 0) & (curr_diff > 0)).astype(int)
+        crossovers["bearish"] = ((prev_diff >= 0) & (curr_diff < 0)).astype(int)
 
         return crossovers
 

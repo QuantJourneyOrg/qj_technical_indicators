@@ -14,7 +14,7 @@ import pandas as pd
 from typing import Dict, Any, Optional, Callable, Tuple, Union
 from functools import lru_cache, wraps
 import hashlib
-import pickle
+import copy
 import threading
 import time
 import psutil
@@ -93,45 +93,54 @@ class IndicatorCache:
         self.hit_count = 0
         self.miss_count = 0
         
+    def _update_digest(self, digest: Any, value: Any) -> None:
+        """Add a complete, type-aware representation to a cache-key digest."""
+        digest.update(f"{type(value).__module__}.{type(value).__qualname__}:".encode())
+
+        if isinstance(value, pd.Series):
+            digest.update(repr((value.name, str(value.dtype), value.shape)).encode())
+            digest.update(pd.util.hash_pandas_object(value, index=True).values.tobytes())
+        elif isinstance(value, pd.DataFrame):
+            digest.update(repr((tuple(value.columns), tuple(map(str, value.dtypes)), value.shape)).encode())
+            digest.update(pd.util.hash_pandas_object(value, index=True).values.tobytes())
+        elif isinstance(value, pd.Index):
+            digest.update(repr((value.name, str(value.dtype), value.shape)).encode())
+            digest.update(pd.util.hash_pandas_object(value, index=True).values.tobytes())
+        elif isinstance(value, np.ndarray):
+            contiguous = np.ascontiguousarray(value)
+            digest.update(repr((contiguous.shape, str(contiguous.dtype))).encode())
+            digest.update(contiguous.tobytes())
+        elif isinstance(value, dict):
+            for key in sorted(value, key=repr):
+                self._update_digest(digest, key)
+                self._update_digest(digest, value[key])
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                self._update_digest(digest, item)
+        elif isinstance(value, (set, frozenset)):
+            for item in sorted(value, key=repr):
+                self._update_digest(digest, item)
+        elif value is None or isinstance(value, (bool, int, float, complex, str, bytes)):
+            digest.update(repr(value).encode())
+        else:
+            # Indicator instances and other mutable objects must not share cache entries.
+            digest.update(f"object-id:{id(value)}".encode())
+
     def _generate_key(self, func_name: str, args: tuple, kwargs: dict) -> str:
-        """Generate cache key from function arguments."""
-        # Convert pandas objects to hashable representations
-        hashable_args = []
-        for arg in args:
-            if isinstance(arg, (pd.Series, pd.DataFrame)):
-                # Use shape, dtypes, and hash of first/last few values
-                if len(arg) > 10:
-                    sample = pd.concat([arg.head(5), arg.tail(5)])
-                else:
-                    sample = arg
-                if isinstance(arg, pd.Series):
-                    dtypes_repr = str(arg.dtype)
-                else:
-                    # DataFrame: tuple of dtype strings in column order
-                    dtypes_repr = tuple(str(dt) for dt in arg.dtypes.values)
-                try:
-                    # Prefer content-based stable hash
-                    if isinstance(sample, pd.Series):
-                        hv = pd.util.hash_pandas_object(sample, index=True).values
-                        content_hash = int(hashlib.md5(hv.tobytes()).hexdigest(), 16)
-                    else:
-                        # DataFrame: combine column-wise hashes
-                        col_hashes = []
-                        for col in sample.columns:
-                            hv = pd.util.hash_pandas_object(sample[col], index=True).values
-                            col_hashes.append(hashlib.md5(hv.tobytes()).digest())
-                        content_hash = int(hashlib.md5(b"".join(col_hashes)).hexdigest(), 16)
-                except Exception:
-                    # Fallback to plain value sampling
-                    content_hash = hash(tuple(sample.values.flatten()))
-                hashable_args.append((arg.shape, dtypes_repr, content_hash))
-            else:
-                hashable_args.append(arg)
-        
-        # Create hash from function name, args, and kwargs
-        key_data = (func_name, tuple(hashable_args), tuple(sorted(kwargs.items())))
-        key_str = str(key_data)
-        return hashlib.md5(key_str.encode()).hexdigest()
+        """Generate a collision-resistant key from all function inputs."""
+        digest = hashlib.blake2b(digest_size=20)
+        digest.update(func_name.encode())
+        self._update_digest(digest, args)
+        self._update_digest(digest, kwargs)
+        return digest.hexdigest()
+
+    @staticmethod
+    def _copy_value(value: Any) -> Any:
+        """Prevent callers from mutating a cached result in place."""
+        try:
+            return copy.deepcopy(value)
+        except Exception:
+            return value
     
     def get(self, key: str) -> Optional[Any]:
         """Get value from cache."""
@@ -149,7 +158,7 @@ class IndicatorCache:
             
             self.access_times[key] = time.time()
             self.hit_count += 1
-            return self.cache[key]
+            return self._copy_value(self.cache[key])
     
     def set(self, key: str, value: Any):
         """Set value in cache."""
@@ -160,7 +169,7 @@ class IndicatorCache:
                 del self.cache[oldest_key]
                 del self.access_times[oldest_key]
             
-            self.cache[key] = value
+            self.cache[key] = self._copy_value(value)
             self.access_times[key] = time.time()
     
     def clear(self):
